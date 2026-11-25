@@ -1,0 +1,12 @@
+const r=require('express').Router();const jwt=require('jsonwebtoken');const bcrypt=require('bcryptjs');const {User}=require('../models');const {auth}=require('../middleware/auth');
+const tok=u=>jwt.sign({id:u._id},process.env.JWT_SECRET,{expiresIn:'7d'});
+const pub=u=>({_id:u._id,name:u.name,email:u.email,role:u.role});
+r.post('/register',async(req,res,next)=>{try{const {name,email,password}=req.body;
+ if(!name||!email||!password||password.length<8)return res.status(400).json({message:'Name, email and a password of 8+ characters are required'});
+ const u=await User.create({name,email,password,role:'viewer'});res.status(201).json({token:tok(u),user:pub(u)})}catch(e){next(e)}});
+r.post('/login',async(req,res,next)=>{try{const u=await User.findOne({email:(req.body.email||'').toLowerCase()}).select('+password');
+ if(!u||!(await bcrypt.compare(req.body.password||'',u.password)))return res.status(401).json({message:'Invalid email or password'});
+ res.json({token:tok(u),user:pub(u)})}catch(e){next(e)}});
+r.get('/me',auth,(req,res)=>res.json(pub(req.user)));
+r.put('/me',auth,async(req,res,next)=>{try{const {name,password}=req.body;if(name)req.user.name=name;if(password){if(password.length<8)return res.status(400).json({message:'Password too short'});req.user.password=password}await req.user.save();res.json(pub(req.user))}catch(e){next(e)}});
+module.exports=r;
